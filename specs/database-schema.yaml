@@ -1,0 +1,270 @@
+# Aurellia Database Schema
+# Defines Pydantic models as data schemas and SQLite DDL for future migration.
+
+version: "1.0"
+engine: sqlite
+models:
+
+  # ─── Events Table ─────────────────────────────────────────────────────────
+  events:
+    description: "Tech events discovered from external sources"
+    storage:
+      table: events
+      indexes:
+        - columns: [starts_at]
+          name: idx_events_starts_at
+        - columns: [source]
+          name: idx_events_source
+        - columns: [url]
+          unique: true
+          name: idx_events_url_unique
+    columns:
+      id:
+        type: integer
+        primary_key: true
+        auto_increment: true
+      title:
+        type: varchar(500)
+        nullable: false
+        check: "length(title) > 0"
+      description:
+        type: text
+        nullable: true
+        default: "''"
+      url:
+        type: varchar(2000)
+        nullable: false
+        check: "url LIKE 'https://%'"
+      source:
+        type: varchar(20)
+        nullable: false
+        check: "source IN ('luma', 'eventbrite', 'mlh', 'partiful', 'manual')"
+      event_type:
+        type: varchar(20)
+        nullable: true
+        default: "'other'"
+        check: "event_type IN ('hackathon', 'meetup', 'workshop', 'info_session', 'coworking', 'conference', 'social', 'other')"
+      location:
+        type: varchar(200)
+        nullable: true
+        default: "'NYC'"
+      starts_at:
+        type: datetime
+        nullable: false
+      ends_at:
+        type: datetime
+        nullable: true
+      is_free:
+        type: boolean
+        nullable: true
+        default: true
+      price:
+        type: float
+        nullable: true
+        check: "price IS NULL OR price >= 0"
+      currency:
+        type: varchar(3)
+        nullable: true
+        default: "'USD'"
+      tags:
+        type: text
+        nullable: true
+        description: "JSON array of tag strings"
+      skill_level:
+        type: varchar(15)
+        nullable: true
+        default: "'any'"
+        check: "skill_level IN ('beginner', 'intermediate', 'advanced', 'any')"
+      relevance_score:
+        type: float
+        nullable: true
+        default: 0.0
+        check: "relevance_score >= 0 AND relevance_score <= 1"
+      created_at:
+        type: datetime
+        nullable: false
+        default: "CURRENT_TIMESTAMP"
+      updated_at:
+        type: datetime
+        nullable: false
+        default: "CURRENT_TIMESTAMP"
+
+  # ─── Users Table ──────────────────────────────────────────────────────────
+  users:
+    description: "Registered Aurellia users"
+    storage:
+      table: users
+      indexes:
+        - columns: [email]
+          unique: true
+          name: idx_users_email_unique
+    columns:
+      id:
+        type: varchar(100)
+        primary_key: true
+      email:
+        type: varchar(255)
+        nullable: false
+        check: "email LIKE '%_@_%.__%'"
+      name:
+        type: varchar(200)
+        nullable: true
+        default: "''"
+      preferences:
+        type: text
+        nullable: true
+        description: "JSON-encoded UserPreference object"
+      created_at:
+        type: datetime
+        nullable: false
+        default: "CURRENT_TIMESTAMP"
+      last_active_at:
+        type: datetime
+        nullable: true
+
+  # ─── Digests Table ────────────────────────────────────────────────────────
+  digests:
+    description: "Generated event digests for users"
+    storage:
+      table: digests
+      indexes:
+        - columns: [user_id, generated_at]
+          name: idx_digests_user_generated
+    columns:
+      id:
+        type: integer
+        primary_key: true
+        auto_increment: true
+      user_id:
+        type: varchar(100)
+        nullable: false
+        foreign_key: "users.id"
+      generated_at:
+        type: datetime
+        nullable: false
+      period_start:
+        type: datetime
+        nullable: false
+      period_end:
+        type: datetime
+        nullable: false
+      entries:
+        type: text
+        nullable: false
+        description: "JSON array of DigestEntry objects"
+
+  # ─── Agent State Table ────────────────────────────────────────────────────
+  agent_state:
+    description: "Persistent agent memory per user"
+    storage:
+      table: agent_state
+      indexes:
+        - columns: [user_id]
+          unique: true
+          name: idx_agent_state_user_unique
+    columns:
+      user_id:
+        type: varchar(100)
+        primary_key: true
+        foreign_key: "users.id"
+      topic_weights:
+        type: text
+        nullable: true
+        description: "JSON object mapping topic to weight score"
+      rsvp_history:
+        type: text
+        nullable: true
+        description: "JSON array of RSVP records"
+      last_updated:
+        type: datetime
+        nullable: true
+        default: "CURRENT_TIMESTAMP"
+
+  # ─── Scrape Cache Table ───────────────────────────────────────────────────
+  scrape_cache:
+    description: "Cached scraped data to avoid redundant requests"
+    storage:
+      table: scrape_cache
+      indexes:
+        - columns: [source, fetched_at]
+          name: idx_scrape_cache_source_fetched
+    columns:
+      id:
+        type: integer
+        primary_key: true
+        auto_increment: true
+      source:
+        type: varchar(20)
+        nullable: false
+      data:
+        type: text
+        nullable: false
+        description: "JSON-encoded scraped events"
+      fetched_at:
+        type: datetime
+        nullable: false
+        default: "CURRENT_TIMESTAMP"
+      expires_at:
+        type: datetime
+        nullable: false
+
+# ─── DDL (for direct SQLite usage) ──────────────────────────────────────────
+ddl: |
+  CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title VARCHAR(500) NOT NULL CHECK(length(title) > 0),
+    description TEXT DEFAULT '',
+    url VARCHAR(2000) NOT NULL CHECK(url LIKE 'https://%'),
+    source VARCHAR(20) NOT NULL CHECK(source IN ('luma', 'eventbrite', 'mlh', 'partiful', 'manual')),
+    event_type VARCHAR(20) DEFAULT 'other' CHECK(event_type IN ('hackathon', 'meetup', 'workshop', 'info_session', 'coworking', 'conference', 'social', 'other')),
+    location VARCHAR(200) DEFAULT 'NYC',
+    starts_at DATETIME NOT NULL,
+    ends_at DATETIME,
+    is_free BOOLEAN DEFAULT 1,
+    price FLOAT CHECK(price IS NULL OR price >= 0),
+    currency VARCHAR(3) DEFAULT 'USD',
+    tags TEXT,
+    skill_level VARCHAR(15) DEFAULT 'any' CHECK(skill_level IN ('beginner', 'intermediate', 'advanced', 'any')),
+    relevance_score FLOAT DEFAULT 0.0 CHECK(relevance_score >= 0 AND relevance_score <= 1),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(url)
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(100) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE CHECK(email LIKE '%_@_%.__%'),
+    name VARCHAR(200) DEFAULT '',
+    preferences TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_active_at DATETIME
+  );
+
+  CREATE TABLE IF NOT EXISTS digests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id VARCHAR(100) NOT NULL REFERENCES users(id),
+    generated_at DATETIME NOT NULL,
+    period_start DATETIME NOT NULL,
+    period_end DATETIME NOT NULL,
+    entries TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS agent_state (
+    user_id VARCHAR(100) PRIMARY KEY REFERENCES users(id),
+    topic_weights TEXT,
+    rsvp_history TEXT,
+    last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS scrape_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source VARCHAR(20) NOT NULL,
+    data TEXT NOT NULL,
+    fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_events_starts_at ON events(starts_at);
+  CREATE INDEX IF NOT EXISTS idx_events_source ON events(source);
+  CREATE INDEX IF NOT EXISTS idx_digests_user_generated ON digests(user_id, generated_at);
+  CREATE INDEX IF NOT EXISTS idx_scrape_cache_source_fetched ON scrape_cache(source, fetched_at);

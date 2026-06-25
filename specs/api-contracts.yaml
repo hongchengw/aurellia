@@ -1,0 +1,313 @@
+# Aurellia API Contracts
+# Formal API specifications for all endpoints.
+
+version: "1.0"
+base_url: "/api/v1"
+content_type: "application/json"
+
+# ─── Shared Schemas ─────────────────────────────────────────────────────────
+
+schemas:
+
+  EventDTO:
+    type: object
+    required: [title, url, source, starts_at]
+    properties:
+      title:
+        type: string
+        minLength: 1
+        maxLength: 500
+        example: "AI Hackathon NYC 2026"
+      description:
+        type: string
+        maxLength: 5000
+        example: "48-hour AI hackathon in Brooklyn"
+      url:
+        type: string
+        format: uri
+        pattern: "^https://"
+        example: "https://luma.com/ai-hackathon-nyc"
+      source:
+        type: string
+        enum: [luma, eventbrite, mlh, partiful, manual]
+      event_type:
+        type: string
+        enum: [hackathon, meetup, workshop, info_session, coworking, conference, social, other]
+      location:
+        type: string
+        example: "Brooklyn, NYC"
+      starts_at:
+        type: string
+        format: date-time
+        example: "2026-07-02T09:00:00Z"
+      is_free:
+        type: boolean
+        default: true
+      price:
+        type: number
+        minimum: 0
+        nullable: true
+      tags:
+        type: array
+        items:
+          type: string
+        example: ["ai", "hackathon", "beginner-friendly"]
+
+  UserPreferenceDTO:
+    type: object
+    properties:
+      interests:
+        type: array
+        items:
+          type: string
+        example: ["ai", "web3", "hackathon"]
+      boroughs:
+        type: array
+        items:
+          type: string
+          enum: [Manhattan, Brooklyn, Queens, Bronx, Staten Island]
+      max_price:
+        type: number
+        minimum: 0
+        example: 25.0
+      skill_level:
+        type: string
+        enum: [beginner, intermediate, advanced, any]
+      preferred_days:
+        type: array
+        items:
+          type: string
+          enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+
+  DigestEntryDTO:
+    type: object
+    required: [rank, title, url, relevance_score]
+    properties:
+      rank:
+        type: integer
+        minimum: 1
+      title:
+        type: string
+      url:
+        type: string
+        format: uri
+      location:
+        type: string
+      starts_at:
+        type: string
+        format: date-time
+      relevance_score:
+        type: number
+        minimum: 0
+        maximum: 1
+      reason:
+        type: string
+
+  DigestDTO:
+    type: object
+    required: [entries, period, generated_at]
+    properties:
+      entries:
+        type: array
+        items:
+          $ref: "#/components/schemas/DigestEntryDTO"
+      period:
+        type: string
+        enum: [today, week, month]
+      generated_at:
+        type: string
+        format: date-time
+
+  ErrorResponse:
+    type: object
+    required: [detail]
+    properties:
+      detail:
+        type: string
+        example: "Invalid city name"
+
+# ─── Endpoints ──────────────────────────────────────────────────────────────
+
+endpoints:
+
+  # ── Health Check ──────────────────────────────────────────────────────────
+  GET /health:
+    description: "Service health check"
+    auth: false
+    responses:
+      "200":
+        description: Service is healthy
+        body:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "healthy"
+            version:
+              type: string
+              example: "0.1.0"
+
+  # ── List Events ───────────────────────────────────────────────────────────
+  GET /events:
+    description: "List upcoming tech events with optional filters"
+    auth: false
+    query_params:
+      - name: topic
+        type: string
+        required: false
+        description: Filter by topic tag
+        example: "ai"
+      - name: borough
+        type: string
+        required: false
+        description: Filter by NYC borough
+        enum: [Manhattan, Brooklyn, Queens, Bronx, Staten Island]
+      - name: days_ahead
+        type: integer
+        required: false
+        default: 7
+        min: 1
+        max: 90
+        description: Days to look ahead
+      - name: free_only
+        type: boolean
+        required: false
+        default: false
+        description: Only show free events
+    responses:
+      "200":
+        description: List of events
+        body:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventDTO"
+      "422":
+        description: Validation error
+        body:
+          $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Get Event ─────────────────────────────────────────────────────────────
+  GET /events/{event_id}:
+    description: "Get a single event by ID"
+    auth: false
+    path_params:
+      - name: event_id
+        type: integer
+        required: true
+    responses:
+      "200":
+        description: Event details
+        body:
+          $ref: "#/components/schemas/EventDTO"
+      "404":
+        description: Event not found
+      "501":
+        description: Not implemented in v1
+
+  # ── Get Digest ────────────────────────────────────────────────────────────
+  GET /digest:
+    description: "Get a personalized event digest"
+    auth: true
+    query_params:
+      - name: user_id
+        type: string
+        required: true
+        description: User identifier
+      - name: period
+        type: string
+        required: false
+        default: "week"
+        enum: [today, week, month]
+    responses:
+      "200":
+        description: Personalized digest
+        body:
+          $ref: "#/components/schemas/DigestDTO"
+      "401":
+        description: Authentication required
+      "422":
+        description: Missing or invalid parameters
+
+  # ── Update Preferences ────────────────────────────────────────────────────
+  POST /preferences:
+    description: "Update user preferences"
+    auth: true
+    body:
+      $ref: "#/components/schemas/UserPreferenceDTO"
+    responses:
+      "200":
+        description: Preferences updated
+        body:
+          type: object
+          properties:
+            status:
+              type: string
+              example: "ok"
+            user_id:
+              type: string
+      "422":
+        description: Validation error (invalid borough, skill level, etc.)
+
+  # ── Get Preferences ───────────────────────────────────────────────────────
+  GET /preferences:
+    description: "Get user preferences"
+    auth: true
+    query_params:
+      - name: user_id
+        type: string
+        required: true
+    responses:
+      "200":
+        description: User preferences
+        body:
+          $ref: "#/components/schemas/UserPreferenceDTO"
+
+  # ── MCP Tools ─────────────────────────────────────────────────────────────
+  mcp/list_events:
+    description: "MCP tool: List upcoming NYC tech events"
+    parameters:
+      city:
+        type: string
+        default: "NYC"
+      topic:
+        type: string
+        nullable: true
+      borough:
+        type: string
+        nullable: true
+      days_ahead:
+        type: integer
+        default: 7
+      free_only:
+        type: boolean
+        default: false
+    returns:
+      type: array
+      items:
+        $ref: "#/components/schemas/EventDTO"
+
+  mcp/get_digest:
+    description: "MCP tool: Get personalized morning digest"
+    auth: true
+    parameters:
+      user_id:
+        type: string
+        required: true
+      period:
+        type: string
+        default: "week"
+        enum: [today, week, month]
+    returns:
+      $ref: "#/components/schemas/DigestDTO"
+
+  mcp/search_events:
+    description: "MCP tool: Natural language event search"
+    parameters:
+      query:
+        type: string
+        required: true
+        example: "free AI hackathon in Brooklyn this weekend"
+    returns:
+      type: array
+      items:
+        $ref: "#/components/schemas/EventDTO"
