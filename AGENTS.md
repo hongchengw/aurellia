@@ -241,14 +241,22 @@ Web → Agent → Workflow → Sources → Models
 - Max file length: 300 lines (excluding tests).
 - Every public function must have a docstring.
 
-### 4.5 Git
+### 4.5 Changelog
+
+- **ALWAYS** log changes in `docs/CHANGELOG.md` before merging to main.
+- Use the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+- Add entries under `## [Unreleased]` with categories: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
+- Move `Unreleased` entries to a versioned section (e.g., `## [0.3.0] - YYYY-MM-DD`) on each release.
+- Every PR that changes behavior, adds features, or fixes bugs MUST include a changelog entry.
+
+### 4.6 Git
 
 - **NEVER** commit to `main` directly.
 - **ALWAYS** use feature branches: `feat/<description>`.
 - Commit messages: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`.
 - Keep commits atomic — one logical change per commit.
 
-### 4.6 Deployment
+### 4.7 Deployment
 
 - **NEVER** expose the app without HTTPS in production.
 - **ALWAYS** set `AURELLIA_MASTER_KEY` as a strong random string.

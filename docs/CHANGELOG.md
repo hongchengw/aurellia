@@ -9,44 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Project scaffold with full directory structure
-- AGENTS.md with naming conventions, coding style, and hard rules
-- Technical specification (specs/SPECS.md)
-- Database schema (specs/database-schema.yaml)
-- API contracts (specs/api-contracts.yaml)
-- BDD scenarios (specs/bdd-scenarios.md) — 30+ Gherkin scenarios
-- Data models: Event, User, UserPreference, Digest, DigestEntry (Pydantic v2)
-- Config module: environment-based settings with Settings.from_env()
-- Security layer: Vault (Fernet encryption), Sanitizer (HTML/SQL injection prevention), RateLimiter (sliding window), PrivacyManager (data retention, anonymization)
-- Source layer: LumaSource (HTML scraper), EventbriteSource (REST API), MLHSource (REST API)
-- Agent layer: AurelliaAgent, AgentMemory (persistent state), 4 skills (Scout, Curate, Courier, Learn)
-- MCP Server: 3 tools (list_events, get_digest, search_events)
-- Workflow: Pipeline (scout→curate→courier→learn), Triggers (Daily, Interval, Manual)
-- Web app: FastAPI with 7 endpoints, dark-themed dashboard with timeline view
-- CLI entry point: `aurellia serve`, `aurellia run`, `aurellia digest`, `aurellia seed`, `aurellia mcp`
-- Seed script with 8 sample NYC tech events
-- GitHub Actions: CI test workflow + scheduled scraping workflow
-- Claude Code skill: skills/scene-scout/SKILL.md
-- 95 tests across unit, integration, and e2e layers
-- Reproduction script (reproduce.py) for scaffold verification
-
-### Security
-- Vault: Fernet encryption (AES-128-CBC) with PBKDF2 key derivation
-- Sanitizer: HTML tag stripping, SQL injection detection, URL validation
-- RateLimiter: Sliding window algorithm, per-source instances
-- PrivacyManager: Data anonymization, retention enforcement, right to deletion
-
 ---
 
-## [0.1.0] - 2026-06-25
+## [0.3.0] - 2026-06-29
+
+### Changed
+- **Major pivot**: Project refactored from NYC tech event tracker to GitHub Trending repo scout
+- Data models rewritten: `Event` → `Repo`, `EventType` → `RepoCategory`, `EventSource` → `RepoSource`
+- Replaced Luma/Eventbrite/MLH event sources with `GithubTrendingSource` (scrapes GitHub Trending)
+- Updated Scout to fetch from 3 GitHub Trending feeds (all languages, Python, TypeScript)
+- Curator ranking now uses language preference, stars, and stars-today (trending signal)
+- Courier now formats repo digest with stars, forks, language, and trending indicator
+- Learn skill updated: `on_rsvp` → `on_star`, `on_skip` preserved for negative signals
+- MCP tools renamed: `list_events` → `list_repos`, `search_events` → `search_repos`
+- API endpoints: `/events` → `/repos`, borough filter → language filter
+- Agent memory: `rsvp_history` → `star_history`, `boroughs` → `languages`
+
+### Removed
+- Luma, Eventbrite, and MLH source implementations (event sites with bot protection)
+- NYC borough validation and geocoding (no longer needed)
+- Event-specific concepts: RSVPs, ticket prices, venue locations, event types (hackathon, meetup, etc.)
 
 ### Added
-- Initial project scaffold and architecture
-- Core models and agent pipeline
-- Web dashboard and MCP server
-- Security layer with encryption and rate limiting
-- Test suite with 95 tests
+- `GithubTrendingSource` with HTML scraping via BeautifulSoup4
+- Category inference: LLM, AI Agent, Framework, Tool, Data, Web, Security, DevTools, Game
+- GitHub star-based relevance scoring (logarithmic stars + stars-today boost)
+- Programming language filtering in API, curator, and user preferences
+- `CLAUDE.md` for AI coding assistant guidance
+
+### Security
+- Sanitizer: replaced borough validation with programming language validation
 
 ---
 
@@ -59,6 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deployment to Railway/Render
 - Multi-city support
 - Real-time event updates via webhook
+
+---
+
+## [0.1.0] - 2026-06-25
+
+### Added
+- Initial project scaffold and architecture
+- Core models and agent pipeline
+- Web dashboard and MCP server
+- Security layer with encryption and rate limiting
+- Test suite with 95 tests
 
 ---
 
