@@ -241,7 +241,17 @@ Web → Agent → Workflow → Sources → Models
 - Max file length: 300 lines (excluding tests).
 - Every public function must have a docstring.
 
-### 4.5 Changelog
+### 4.5 Context Loading Order
+
+When starting a new session, read files in this order:
+1. `README.md` — project overview and quick start
+2. `AGENTS.md` — this file, rules and architecture
+3. Source code in `src/aurellia/` — the actual implementation
+
+Do NOT read `specs/`, `docs/CHANGELOG.md`, or YAML schemas unless explicitly asked.
+Specs may be stale. Source code is the source of truth.
+
+### 4.6 Changelog
 
 - **ALWAYS** log changes in `docs/CHANGELOG.md` before merging to main.
 - Use the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
