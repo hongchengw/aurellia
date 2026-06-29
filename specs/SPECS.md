@@ -1,9 +1,11 @@
 # Aurellia Technical Specification
 
 **Version:** 0.3.0
-**Status:** Draft
+**Status:** Draft (target architecture — not yet implemented)
 **Author:** hongc
 **Last Updated:** 2026-06-29
+
+> **Note:** This spec describes the *target* architecture for v0.3.0. The current codebase is a scaffold with empty modules. Each section of this spec will be implemented incrementally and reviewed before merging.
 
 ---
 

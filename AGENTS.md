@@ -127,11 +127,7 @@ uv run python -m aurellia mcp       # Start MCP server
 
 ## 7. Skills Catalog
 
-| Skill | Trigger | Description |
-|---|---|---|
-| `scene-scout` | Manual / Claude Code | Guided repo discovery workflow |
-
-*(Skills loaded on demand — not auto-loaded into context)*
+*(No skills defined yet. Skills will be added as needed during feature development.)*
 
 ---
 

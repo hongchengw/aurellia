@@ -1,5 +1,6 @@
 # Aurellia Database Schema
 # Defines Pydantic models as data schemas and SQLite DDL for future migration.
+# **Target schema** — not yet implemented in the scaffold.
 
 version: "1.0"
 engine: sqlite

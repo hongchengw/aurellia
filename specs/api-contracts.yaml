@@ -1,5 +1,6 @@
 # Aurellia API Contracts
 # Formal API specifications for all endpoints.
+# **Target contracts** — not yet implemented in the scaffold.
 
 version: "1.0"
 base_url: "/api/v1"

@@ -1,5 +1,6 @@
 # Aurellia BDD Scenarios
 # Behavior Driven Development scenarios using Gherkin syntax.
+# **Target scenarios** — not yet implemented in the scaffold.
 
 ---
 

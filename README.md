@@ -3,117 +3,90 @@
 Your personal GitHub Trending repo scout. Aurellia discovers trending repositories from GitHub, filters and ranks them against your interests, and delivers a personalized morning digest — via web dashboard, email, or any MCP-compatible agent.
 
 > **Project:** Aurellia — Kaggle x Google AI Agents Capstone (Concierge Track)
-> **Why GitHub Trending?** Event sites (Luma, Eventbrite, MLH) have aggressive bot protection. GitHub encourages scraping and provides far richer data — stars, forks, languages, topics — that reveals real patterns in how AI/LLM systems are built.
 
 ## Status
 
-🔹 **v0.3.0 — pivot to GitHub Trending complete, 96 tests passing.**
+🔹 **v0.3.0 — scaffold ready for feature development.**
 
-The four agent layers (source → agent → workflow → web), the MCP server (3 tools), and the security layer (Vault / Sanitizer / PrivacyManager) are all implemented. A seed script, CI workflows, and a Claude Code skill are in place. See `specs/SPECS.md` for the authoritative spec. See `docs/CHANGELOG.md` for release history.
+The project is structured as an empty package skeleton. All 30 source modules exist as stubs (empty files). No features are implemented yet. This is intentional — each feature will be built, tested, and reviewed individually before merging.
 
-## Quick Start
+## Roadmap
+
+Features will be implemented in dependency order:
+
+| # | Feature | Description |
+|---|---|---|
+| 1 | **Models** | Pydantic data shapes: Repo, User, Digest, enums |
+| 2 | **Sources** | GitHub Trending HTML scraper |
+| 3 | **Scout Skill** | Discover trending repos from GitHub |
+| 4 | **Curate Skill** | Deduplicate, filter by language, rank by relevance |
+| 5 | **Courier Skill** | Build personalized digest (markdown/HTML) |
+| 6 | **Learn Skill** | Feedback loop from stars/skips |
+| 7 | **Agent Core** | Orchestrator + AgentMemory |
+| 8 | **Security** | Vault (encryption), Sanitizer, PrivacyManager |
+| 9 | **Web Dashboard** | FastAPI routes + UI |
+| 10 | **MCP Server** | list_repos, get_digest, search_repos |
+| 11 | **Workflow** | Pipeline, triggers, caching |
+| 12 | **CLI** | serve, run, digest, seed, mcp commands |
+
+## Package Structure
+
+```
+src/aurellia/
+├── __init__.py
+├── __main__.py
+├── models/          ← Repo, User, Digest models
+├── sources/         ← GitHub Trending scraper
+├── agent/
+│   ├── core.py      ← AurelliaAgent orchestrator
+│   ├── memory.py    ← Persistent state (stars, weights)
+│   └── skills/      ← scout, curate, courier, learn
+├── workflow/         ← Pipeline + Triggers
+├── mcp/              ← MCP server + tool definitions
+├── web/              ← FastAPI app + routes
+├── security/         ← vault, sanitize, privacy
+├── config/           ← Settings from env vars
+└── utils/            ← logger, nlp
+```
+
+## Configuration
+
+All configuration via environment variables. Required: `AURELLIA_MASTER_KEY` (32+ chars). Optional: `GITHUB_TOKEN`, `DATABASE_URL`, `SCRAPE_INTERVAL`, `MAX_REPOS`, `DIGEST_PERIOD_DAYS`, `MAX_DIGEST_ENTRIES`, `SMTP_*`, `DEBUG`.
+
+## Testing
+
+Test infrastructure is configured but empty. Tests will be written alongside each feature.
 
 ```bash
-# Install dependencies
 uv sync --extra dev
-
-# Run the full test suite (≥80% coverage enforced)
 uv run pytest
-
-# Verify every module imports and critical flows work
-uv run python reproduce.py
-
-# Run the web dashboard (http://localhost:8000)
-uv run python -m aurellia serve
-
-# Run a one-shot pipeline to get today's trending repos
-uv run python -m aurellia run --period 7
-
-# Seed local data with sample repos
-uv run python -m aurellia seed
-
-# Start the MCP server (stdio)
-uv run python -m aurellia mcp
 ```
 
-Optional static analysis (configured in `pyproject.toml`):
+## Architecture (Target)
 
-```bash
-uv run ruff check src/ tests/
-uv run mypy src/aurellia/
-```
-
-## Architecture
-
-Four layers, strict dependency order (top → bottom):
+Four layers, strict dependency order:
 
 ```
-   Web (FastAPI + Jinja2 dashboard)
-        ↓
-   Agent (AurelliaAgent → Scout / Curate / Courier / Learn)
-        ↓
-   Workflow (Pipeline + Triggers + Cache)
-        ↓
-   Sources (GitHub Trending HTML)  +  Models (Pydantic)
-
-   Cross-cutting: Security (vault, sanitize, privacy) · Config · Utils
+Web (FastAPI)
+     ↓
+Agent (AurelliaAgent → Scout / Curate / Courier / Learn)
+     ↓
+Workflow (Pipeline + Triggers + Cache)
+     ↓
+Sources (GitHub Trending)  +  Models (Pydantic)
+     ↓
+Security · Config · Utils
 ```
 
-- **`src/aurellia/sources/`** — `GithubTrendingSource` (BeautifulSoup4 scraper, 30 req/min). Scrapes GitHub Trending across all languages, Python, and TypeScript. Infers category (LLM, AI Agent, Framework, Tool, etc.) from title/description. All repos normalize to a common `Repo` model.
-- **`src/aurellia/agent/`** — `AurelliaAgent` orchestrates the four skills and holds `AgentMemory` (`data/agent_state.json`, topic weights + star history). `ScoutSkill` fetches from GitHub Trending; `CuratorSkill` deduplicates by URL, filters by language/preferences, and ranks by relevance; `CourierSkill` builds the `Digest`; `LearnSkill` updates weights from stars/skips.
-- **`src/aurellia/workflow/`** — `Pipeline` runs scout → curate → courier → learn; `Triggers` supports daily cron, interval, and manual runs.
-- **`src/aurellia/web/`** — FastAPI app with endpoints for `/repos`, `/digest`, `/preferences`, `/health`, and `/` dashboard.
-- **`src/aurellia/mcp/`** — MCP server exposing `list_repos`, `get_digest` (auth'd), `search_repos` over stdio.
-- **`src/aurellia/security/`** — `Vault` (Fernet AES-128-CBC, PBKDF2), `Sanitizer` (HTML/SQL/URL validation + language validation), `PrivacyManager` (anonymization, retention, right to deletion).
-- **`src/aurellia/config/`** — `Settings.from_env()` loads all config from env vars.
-- **`src/aurellia/utils/`** — `logger` (structlog JSON), `nlp` (keyword extraction, summarization, category enrichment).
-
-See `AGENTS.md` for naming conventions, hard rules, and the dependency graph. See `specs/SPECS.md` for the full technical spec, data models, API contracts, and non-functional requirements.
-
-## CLI
+## CLI (Target)
 
 | Command | Purpose |
 |---|---|
 | `aurellia serve` | Start the FastAPI dashboard |
-| `aurellia run --period N` | Run the pipeline for the next N days |
-| `aurellia digest` | Print the current digest to stdout |
+| `aurellia run --period N` | Run the pipeline |
+| `aurellia digest` | Print current digest |
 | `aurellia seed` | Insert sample repos |
-| `aurellia mcp` | Start the MCP server on stdio |
-
-## Configuration
-
-All configuration is via environment variables — no secrets in code. Required: `AURELLIA_MASTER_KEY` (32+ chars). Optional: `GITHUB_TOKEN` (for higher API rate limits), `DATABASE_URL` (defaults to `sqlite:///data/aurellia.db`), `SCRAPE_INTERVAL`, `MAX_REPOS`, `DIGEST_PERIOD_DAYS`, `MAX_DIGEST_ENTRIES`, `SMTP_*` for email delivery`, `DEBUG`. Full list in `specs/SPECS.md` §6.
-
-## Testing
-
-96 tests across three layers, enforced by `pytest-cov` (≥80%):
-
-- `tests/unit/` — models, curator, security, sources, NLP
-- `tests/integration/` — API endpoints, full pipeline, digest generation
-- `tests/e2e/` — full user journey
-
-External HTTP calls are mocked; tests are deterministic. Markers: `@pytest.mark.slow`, `@pytest.mark.integration`, `@pytest.mark.e2e`.
-
-## Categories
-
-Aurellia automatically categorizes trending repos:
-
-| Category | Example Keywords |
-|---|---|
-| LLM | llm, gpt, claude, gemini, llama, rag, chatbot, embeddings |
-| AI Agent | agent, agentic, autonomous, multi-agent, crew, swarm, langchain |
-| Framework | framework, nextjs, react, django, fastapi, spring |
-| Tool | tool, cli, utility, helper, automation |
-| Data | data, pandas, spark, analytics, sql |
-| Web | web, frontend, backend, javascript, typescript |
-| Security | security, crypto, vulnerability, auth |
-| DevTools | devops, docker, kubernetes, deploy |
-| Game | game, unity, godot, unreal |
-
-## CI / Deployment
-
-- `.github/workflows/test.yml` — runs ruff, mypy, and pytest with coverage on push/PR.
-- `.github/workflows/scrape.yml` — daily cron to refresh trending repos.
+| `aurellia mcp` | Start the MCP server |
 
 ## License
 
