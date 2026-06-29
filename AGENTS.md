@@ -1,199 +1,73 @@
 # AGENTS.md — Aurellia Project Rules
 
-> **Project:** Aurellia — Your personal GitHub trending repo scout agent
-> **Track:** Concierge Agents (Kaggle x Google AI Agents Capstone)
-> **Python:** 3.12+ | **Package Manager:** uv | **Code Style:** Ruff + mypy strict
+> **Project:** Aurellia — GitHub Trending repo scout agent (Kaggle x Google AI Agents Capstone)
+> **Stack:** Python 3.12+ · uv · FastAPI · Pydantic v2 · httpx · BeautifulSoup4 · Ruff + mypy strict
 
 ---
 
-## 1. Naming Conventions
+## 1. Role & Boundaries
+
+Aurellia is a **concierge agent** that discovers trending GitHub repos, curates them to user interests, and delivers personalized digests. It does NOT:
+- Make unsolicited external API calls outside the pipeline
+- Store user data without encryption
+- Expose internal agent state through web endpoints
+
+---
+
+## 2. Naming Conventions
 
 | Element | Convention | Example |
 |---|---|---|
-| **Files (modules)** | `snake_case.py` | `repo.py`, `scout.py`, `pipeline.py` |
-| **Classes** | `PascalCase` | `RepoSource`, `AurelliaAgent`, `CuratorSkill` |
-| **Functions / methods** | `snake_case` | `fetch_repos`, `run_pipeline`, `get_interests` |
+| **Files** | `snake_case.py` | `repo.py`, `scout.py` |
+| **Classes** | `PascalCase` | `RepoSource`, `AurelliaAgent` |
+| **Functions** | `snake_case` | `fetch_repos`, `run_pipeline` |
 | **Constants** | `UPPER_SNAKE_CASE` | `BASE_URL`, `RATE_LIMIT_PER_MINUTE` |
-| **Private/internal** | `_leading_underscore` | `_parse_repo`, `_cache`, `_storage` |
-| **Type aliases** | `PascalCase` | `TopicWeights = Dict[str, float]` |
-| **Test files** | `test_<module>.py` | `test_sources.py`, `test_curator.py` |
-| **Test classes** | `Test<Subject>` | `TestGithubSource`, `TestDeduplication` |
-| **Test functions** | `test_<action>_<condition>` | `test_fetch_repos_handles_network_error` |
-| **Config keys** | `UPPER_SNAKE_CASE` | `GITHUB_TOKEN`, `MASTER_KEY` |
-| **Environment variables** | `AURELLIA_<KEY>` | `AURELLIA_MASTER_KEY`, `AURELLIA_ENCRYPTION_KEY` |
-| **MCP tools** | `verb_noun` | `list_repos`, `get_digest`, `search_repos` |
-| **Skills** | `kebab-case` | `repo-scout` |
-| **Branches** | `feat/`, `fix/`, `chore/` | `feat/mcp-server`, `fix/rate-limiter` |
+| **Private** | `_leading_underscore` | `_parse_repo`, `_cache` |
+| **Tests** | `test_<module>.py` / `Test<Subject>` / `test_<action>_<condition>` | `test_sources.py`, `TestGithubSource` |
+| **Env vars** | `AURELLIA_<KEY>` | `AURELLIA_MASTER_KEY` |
+| **MCP tools** | `verb_noun` | `list_repos`, `get_digest` |
+| **Branches** | `feat/`, `fix/`, `chore/` | `feat/mcp-server` |
 
 ---
 
-## 2. Coding Style
+## 3. Coding Style
 
-### 2.1 General Principles
-
-- **Readability over cleverness.** Code is read 10x more than it is written.
-- **Explicit over implicit.** Type annotations on all function signatures. Return types required.
-- **Fail fast, fail loud.** Validate inputs at boundaries. Raise specific exceptions.
-- **Single Responsibility.** Each function does one thing. Max ~30 lines per function.
-- **No side effects in queries.** Queries return data; they don't mutate state.
-
-### 2.2 Formatting (enforced by Ruff)
-
-```toml
-line-length = 100
-target-version = "py312"
-# isort: stdlib → third-party → first-party (aurellia)
-```
-
-- Use **double quotes** for strings (Ruff default).
-- Use **single quotes** only for f-string expressions inside double-quoted strings.
-- **Trailing commas** in multi-line collections (dicts, lists, function calls).
-- **Docstrings** on all public modules, classes, and functions (Google style).
-
-### 2.3 Type Hints
-
-```python
-# ✅ Correct
-def fetch_repos(self, **kwargs) -> List[Repo]:
-    ...
-
-def get_topic_weights(self) -> Dict[str, float]:
-    ...
-
-# ❌ Wrong — missing return type
-def fetch_repos(self, **kwargs):
-    ...
-
-# ❌ Wrong — using Any when a specific type exists
-def process(data: Any) -> None:
-    ...
-```
-
-Run `uv run mypy src/aurellia/` — must pass with zero errors.
-
-### 2.4 Imports
-
-```python
-# Order: stdlib → third-party → first-party (aurellia)
-# Use absolute imports always (no relative imports).
-
-# ✅ Correct
-from datetime import datetime, timedelta
-from typing import List, Optional
-from aurellia.models import Repo, RepoSource
-from aurellia.config.settings import settings
-
-# ❌ Wrong — relative imports
-from ..models import Repo
-
-# ❌ Wrong — wildcard imports
-from aurellia.models import *
-
-# ❌ Wrong — unused imports (ruff F401)
-from aurellia.models import Digest  # not used in file
-```
-
-### 2.5 Error Handling
-
-```python
-# Custom exceptions for domain-specific errors
-class SourceError(Exception):
-    def __init__(self, message: str, source: str = ""):
-        self.source = source
-        super().__init__(f"[{source}] {message}" if source else message)
-
-# Catch specific exceptions, never bare except
-try:
-    repos = source.fetch_repos()
-except SourceError as e:
-    logger.warning(f"Source failed: {e}")
-except httpx.HTTPError as e:
-    logger.error(f"HTTP error: {e}")
-```
-
-### 2.6 Logging
-
-```python
-from aurellia.utils.logger import get_logger
-
-logger = get_logger(__name__)
-
-# Use appropriate levels
-logger.debug(f"Parsed repo: {repo.title}")  # dev-only info
-logger.info(f"Fetched {len(repos)} repos")  # normal flow
-logger.warning(f"Source {name} returned 0 repos")  # recoverable issue
-logger.error(f"Failed to send email: {e}")  # needs attention
-
-# NEVER log secrets, API keys, or user PII
-# Use logger.anonymize() before logging user data
-```
-
-### 2.7 Async vs Sync
-
-- **Scraping/API calls:** Use `httpx.Client` (sync) within the agent pipeline.
-- **Web app:** Use `async def` endpoints in FastAPI.
-- **Scheduled jobs:** Use APScheduler with sync functions.
-- Don't mix async/sync in the same function.
+- **Type annotations** on all function signatures. Return types required. `mypy --strict` must pass.
+- **Google-style docstrings** on all public modules, classes, and functions.
+- **Absolute imports** only. Order: stdlib → third-party → first-party (`aurellia`).
+- **Ruff** enforced: `line-length = 100`, `target-version = "py312"`, double quotes, trailing commas.
+- **Fail fast, fail loud.** Validate inputs at boundaries. Raise specific exceptions (`SourceError`).
+- **Catch specific exceptions**, never bare `except`. Never catch `Exception` silently.
+- **Never log secrets, API keys, or user PII.** Use `logger.anonymize()` before logging user data.
+- **Scraping:** `httpx.Client` (sync). **Web:** `async def` in FastAPI. **Don't mix.**
 
 ---
 
-## 3. Project Architecture
+## 4. Architecture
 
-### 3.1 Layered Architecture
+### 4.1 Layers
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Web Layer (FastAPI)                 │
-│   app.py → routes → templates                        │
-├─────────────────────────────────────────────────────┤
-│                  Agent Layer (Orchestrator)           │
-│   AurelliaAgent → Skills (scout/curate/courier/learn)│
-├─────────────────────────────────────────────────────┤
-│                  Workflow Layer (Pipeline)            │
-│   Pipeline → Triggers → Cache                        │
-├─────────────────────────────────────────────────────┤
-│                  Data Layer (Sources + Models)        │
-│   RepoSourceBase → GitHub Trending                   │
-│   Models (Pydantic): Repo, User, Digest             │
-├─────────────────────────────────────────────────────┤
-│                  Infrastructure Layer                 │
-│   Security (vault/sanitize/privacy)                  │
-│   Config (settings.yaml)                             │
-│   Utils (logger/nlp/geocode)                         │
-└─────────────────────────────────────────────────────┘
+Web (FastAPI) → Agent (AurelliaAgent + 4 skills) → Workflow (Pipeline + Triggers) → Sources (GitHub Trending) → Models (Pydantic)
+Cross-cutting: Security · Config · Utils
 ```
 
-### 3.2 Module Responsibilities
+### 4.2 Module Map
 
 | Module | Responsibility |
 |---|---|
-| `agent/core.py` | Orchestrates skills, manages pipeline execution |
-| `agent/memory.py` | Persistent user state, star history, topic weights |
-| `agent/skills/scout.py` | Discovers trending repos from GitHub |
-| `agent/skills/curate.py` | Deduplicates, filters, ranks repos |
-| `agent/skills/courier.py` | Formats and delivers digests |
+| `agent/core.py` | Orchestrates skills, runs pipeline |
+| `agent/memory.py` | Persistent state: star history, topic weights |
+| `agent/skills/scout.py` | Fetches from GitHub Trending (all, python, typescript) |
+| `agent/skills/curate.py` | Dedup → filter → rank |
+| `agent/skills/courier.py` | Build digest (markdown/HTML/email) |
 | `agent/skills/learn.py` | Feedback loop, preference learning |
-| `sources/base.py` | Abstract interface for all repo sources |
-| `sources/github.py` | GitHub Trending HTML scraper |
-| `mcp/__init__.py` | MCP server + tool definitions |
-| `workflow/pipeline.py` | Full pipeline orchestration |
-| `workflow/triggers.py` | Scheduling triggers |
-| `web/app.py` | FastAPI application + routes |
-| `security/vault.py` | Encrypted secret storage |
-| `security/sanitize.py` | Input validation + rate limiting |
-| `security/privacy.py` | User data privacy + retention |
-| `models/__init__.py` | All Pydantic data models |
-| `config/settings.py` | Environment-based configuration |
+| `sources/github.py` | GitHub Trending HTML scraper (bs4) |
+| `mcp/__init__.py` | MCP server: `list_repos`, `get_digest`, `search_repos` |
+| `workflow/pipeline.py` | Scout → Curate → Courier → Learn |
+| `web/app.py` | FastAPI: `/repos`, `/digest`, `/preferences` |
 
-### 3.3 Dependency Rules
-
-```
-Web → Agent → Workflow → Sources → Models
-                   ↓
-              Security (used by any layer)
-                   ↓
-              Config + Utils (used by all layers)
-```
+### 4.3 Dependency Rules
 
 - **Models** never import from Agent, Web, or Workflow.
 - **Sources** never import from Web or MCP.
@@ -202,81 +76,66 @@ Web → Agent → Workflow → Sources → Models
 
 ---
 
-## 4. Hard Rules
+## 5. Build & Workflow Commands
 
-### 4.1 Security
-
-- **NEVER** hardcode API keys, passwords, or secrets in source code.
-- **NEVER** commit `.env` files or `aurellia.db` to git.
-- **ALWAYS** use `Vault` for secret storage in production.
-- **ALWAYS** sanitize user input before processing (via `Sanitizer`).
-- **ALWAYS** anonymize user identifiers before logging.
-- **NEVER** include API keys in error messages or logs.
-- Rate limiting must be enforced on all external API calls.
-
-### 4.2 Data
-
-- **ALWAYS** validate data at the boundary (source → model).
-- **ALWAYS** use Pydantic models for data validation.
-- **NEVER** mutate model instances in place — create new instances.
-- User preference data must be encrypted at rest.
-- Implement right to be forgotten (full data deletion on request).
-
-### 4.3 Testing
-
-- **ALWAYS** write tests for new features before merging.
-- **ALWAYS** mock external HTTP calls (use `unittest.mock.patch`).
-- **NEVER** make real API calls in tests.
-- Tests must be deterministic — no flaky tests.
-- Coverage target: ≥80% (`--cov-fail-under=80`).
-- Test file naming: `test_<module>.py`.
-- Use `pytest` markers: `@pytest.mark.slow`, `@pytest.mark.integration`.
-
-### 4.4 Code Quality
-
-- **ALWAYS** run `uv run ruff check src/ tests/` before committing.
-- **ALWAYS** run `uv run mypy src/aurellia/` before committing.
-- **ALWAYS** run `uv run pytest` before committing.
-- Max function length: 50 lines (excluding docstrings).
-- Max file length: 300 lines (excluding tests).
-- Every public function must have a docstring.
-
-### 4.5 Context Loading Order
-
-When starting a new session, read files in this order:
-1. `README.md` — project overview and quick start
-2. `AGENTS.md` — this file, rules and architecture
-3. Source code in `src/aurellia/` — the actual implementation
-
-Do NOT read `specs/`, `docs/CHANGELOG.md`, or YAML schemas unless explicitly asked.
-Specs may be stale. Source code is the source of truth.
-
-### 4.6 Changelog
-
-- **ALWAYS** log changes in `docs/CHANGELOG.md` before merging to main.
-- Use the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
-- Add entries under `## [Unreleased]` with categories: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`.
-- Move `Unreleased` entries to a versioned section (e.g., `## [0.3.0] - YYYY-MM-DD`) on each release.
-- Every PR that changes behavior, adds features, or fixes bugs MUST include a changelog entry.
-
-### 4.6 Git
-
-- **NEVER** commit to `main` directly.
-- **ALWAYS** use feature branches: `feat/<description>`.
-- Commit messages: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`.
-- Keep commits atomic — one logical change per commit.
-
-### 4.7 Deployment
-
-- **NEVER** expose the app without HTTPS in production.
-- **ALWAYS** set `AURELLIA_MASTER_KEY` as a strong random string.
-- **ALWAYS** set `DEBUG=false` in production.
-- Use environment variables for all configuration in production.
-- Database migrations must be backward-compatible.
+```bash
+uv sync --extra dev          # Install dependencies
+uv run pytest                # Run tests (≥80% coverage enforced)
+uv run ruff check src/ tests/ # Lint
+uv run mypy src/aurellia/    # Type check
+uv run python -m aurellia serve   # Start web dashboard
+uv run python -m aurellia run --period 7  # Run pipeline
+uv run python -m aurellia seed      # Seed sample repos
+uv run python -m aurellia mcp       # Start MCP server
+```
 
 ---
 
-## 5. Tool Versions
+## 6. Hard Rules
+
+### 6.1 Security
+- **NEVER** hardcode secrets. **NEVER** commit `.env` or `aurellia.db`.
+- **ALWAYS** use `Vault` for secrets. **ALWAYS** sanitize input. **ALWAYS** anonymize user IDs in logs.
+- Rate limiting on all external API calls.
+
+### 6.2 Data
+- **ALWAYS** validate at boundary (source → model). **ALWAYS** use Pydantic.
+- **NEVER** mutate model instances in place. Right to be forgotten enforced.
+
+### 6.3 Testing
+- **ALWAYS** write tests before merging. **ALWAYS** mock HTTP calls. **NEVER** make real API calls in tests.
+- Coverage target: ≥80%. Tests must be deterministic.
+
+### 6.4 Code Quality
+- **ALWAYS** run `ruff` + `mypy` + `pytest` before committing.
+- Max function length: 50 lines. Max file length: 300 lines (excluding tests).
+
+### 6.5 Context Loading Order
+1. Read `README.md` → `AGENTS.md` → source code in `src/aurellia/`
+2. Do NOT read `specs/`, `docs/CHANGELOG.md`, or YAML schemas unless explicitly asked.
+3. Specs may be stale. Source code is the source of truth.
+
+### 6.6 Changelog
+- **ALWAYS** log changes in `docs/CHANGELOG.md` before merging. Use [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
+- Every behavior-changing PR MUST include a changelog entry.
+
+### 6.7 Git
+- **NEVER** commit to `main` directly. **ALWAYS** use `feat/<description>` branches.
+- Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`.
+
+---
+
+## 7. Skills Catalog
+
+| Skill | Trigger | Description |
+|---|---|---|
+| `scene-scout` | Manual / Claude Code | Guided repo discovery workflow |
+
+*(Skills loaded on demand — not auto-loaded into context)*
+
+---
+
+## 8. Tool Versions
 
 | Tool | Version | Purpose |
 |---|---|---|
@@ -290,44 +149,9 @@ Specs may be stale. Source code is the source of truth.
 | structlog | 24.x | Structured logging |
 | MCP SDK | 0.1.x | MCP server |
 | pytest | 8.x | Test framework |
-| pytest-asyncio | 0.24.x | Async tests |
-| pytest-cov | 5.x | Coverage |
 | Ruff | 0.6.x | Linter/formatter |
 | mypy | 1.13.x | Type checker |
 
 ---
 
-## 6. MCP Server Exposed Tools
-
-| Tool | Description | Auth Required |
-|---|---|---|
-| `list_repos` | List trending GitHub repos with filters | No |
-| `get_digest` | Get personalized morning digest | Yes (user_id) |
-| `search_repos` | Natural language repo search | No |
-
----
-
-## 7. Agentic Workflow
-
-```
-Trigger (cron/manual/MCP)
-  │
-  ▼
-Scout Skill ─── Fetch from GitHub Trending (all, python, typescript)
-  │
-  ▼
-Curator Skill ── Deduplicate → Filter → Rank
-  │
-  ▼
-Courier Skill ── Build Digest (markdown/HTML/email)
-  │
-  ▼
-Learn Skill ─── Update topic weights from context
-  │
-  ▼
-Deliver ── Web dashboard / Email / MCP response
-```
-
----
-
-*Last updated: 2026-06-25 | Version: 0.2.0*
+*Last updated: 2026-06-29 | Version: 0.3.0*
