@@ -3,105 +3,110 @@
 
 ---
 
-## Feature: Event Discovery
+## Feature: Repo Discovery
 
-### Scenario: Successfully scrape events from Luma
-Given the Luma source is configured with valid selectors
-When the scout skill fetches events from Luma
-Then events are returned with titles, URLs, and dates
-And each event has source set to "luma"
-And invalid events are skipped gracefully
+### Scenario: Successfully scrape repos from GitHub Trending
+Given the GitHub Trending source is configured
+When the scout skill fetches repos from GitHub Trending
+Then repos are returned with titles, URLs, and metadata
+And each repo has source set to "github"
+And repos include stars, forks, and language
+And invalid repos are skipped gracefully
 
-### Scenario: Handle Luma network failure
-Given the Luma source is unreachable
-When the scout skill attempts to fetch events
-Then a SourceError is raised with source="luma"
-And the pipeline continues with other sources
+### Scenario: Handle GitHub network failure
+Given GitHub Trending is unreachable
+When the scout skill attempts to fetch repos
+Then a SourceError is raised with source="github"
+And the pipeline completes with an empty list
+And the error is logged
 
-### Scenario: Fetch events from Eventbrite API
-Given a valid Eventbrite API key is configured
-When the scout skill fetches events from Eventbrite
-Then events are returned with normalized fields
-And each event has source set to "eventbrite"
-And prices are converted from cents to dollars
+### Scenario: Fetch repos from Python trending
+Given the GitHub Trending source is configured for Python
+When the scout skill fetches repos
+Then all repos have language set to "Python"
+And repos are returned with titles, URLs, and metadata
 
-### Scenario: Handle missing Eventbrite API key
-Given no Eventbrite API key is configured
-When the scout skill attempts to fetch from Eventbrite
-Then a SourceError is raised with message "Eventbrite API key is required"
+### Scenario: Fetch repos from TypeScript trending
+Given the GitHub Trending source is configured for TypeScript
+When the scout skill fetches repos
+Then all repos have language set to "TypeScript"
+And repos are returned with titles, URLs, and metadata
 
-### Scenario: Fetch events from MLH API
-Given the MLH API is accessible
-When the scout skill fetches events from MLH
-Then only future events are returned
-And each event has source set to "mlh"
+### Scenario: Infer LLM category from title/description
+Given a repo titled "awesome-llm" with description "A large language model framework"
+When the source parses the repo
+Then the repo_category is set to "llm"
+
+### Scenario: Infer AI Agent category from title/description
+Given a repo titled "crewAI" with description "Multi-agent orchestration framework"
+When the source parses the repo
+Then the repo_category is set to "ai_agent"
 
 ### Scenario: All sources fail gracefully
-Given all event sources are unreachable
+Given GitHub Trending is unreachable
 When the pipeline runs
-Then an empty event list is processed
+Then an empty repo list is processed
 And the pipeline completes without crashing
-And errors are logged for each failed source
+And errors are logged
 
 ---
 
-## Feature: Event Deduplication
+## Feature: Repo Deduplication
 
-### Scenario: Remove duplicate events by URL
-Given two events with the same URL but different sources
-When the curator skill deduplicates events
-Then only one event is kept
-And the event has both sources listed
+### Scenario: Remove duplicate repos by URL
+Given two repos with the same URL from different feeds
+When the curator skill deduplicates repos
+Then only one repo is kept
+And the repo has both sources listed
 
-### Scenario: Remove duplicate events by title
-Given two events with the same title from different sources
-When the curator skill deduplicates events
-Then only one event is kept
+### Scenario: Remove duplicate repos by title
+Given two repos with the same title from different feeds
+When the curator skill deduplicates repos
+Then only one repo is kept
 
-### Scenario: Keep distinct events separate
-Given three events with different titles and URLs
-When the curator skill deduplicates events
-Then all three events are kept
-
----
-
-## Feature: Event Filtering
-
-### Scenario: Filter events by maximum price
-Given a user with max_price set to 20.0
-When the curator filters events
-Then events with price > 20.0 are excluded
-And free events are included
-
-### Scenario: Filter events by date range
-Given a user requesting events within 7 days
-When the curator filters events
-Then events more than 7 days away are excluded
-And past events are excluded
-
-### Scenario: Filter events by borough
-Given a user preferring Brooklyn
-When the curator filters events
-Then events in Brooklyn are prioritized
+### Scenario: Keep distinct repos separate
+Given three repos with different titles and URLs
+When the curator skill deduplicates repos
+Then all three repos are kept
 
 ---
 
-## Feature: Event Ranking
+## Feature: Repo Filtering
 
-### Scenario: Rank events by interest matching
-Given a user interested in "ai" and "hackathon"
-When the curator ranks events
-Then events tagged "ai" or "hackathon" have higher relevance scores
-And events with no matching tags have lower scores
+### Scenario: Filter repos by language preference
+Given a user with languages set to ["python", "typescript"]
+When the curator filters repos
+Then only Python and TypeScript repos are included
+And repos in other languages are excluded
 
-### Scenario: Rank free events higher for budget users
-Given a user with max_price of 0
-When the curator ranks events
-Then free events are ranked higher than paid events
+### Scenario: No language filter when user has no preference
+Given a user with no language preferences
+When the curator filters repos
+Then all repos are included regardless of language
+
+---
+
+## Feature: Repo Ranking
+
+### Scenario: Rank repos by interest matching
+Given a user interested in "ai" and "llm"
+When the curator ranks repos
+Then repos tagged "ai" or "llm" have higher relevance scores
+And repos with no matching tags have lower scores
+
+### Scenario: Rank preferred language higher
+Given a user with language preference "rust"
+When the curator ranks repos
+Then Rust repos are ranked higher than other languages
+
+### Scenario: Rank trending repos higher
+Given two repos with equal interest matching
+When the curator ranks repos
+Then the repo with more stars_today is ranked higher
 
 ### Scenario: All relevance scores are valid
-Given any set of events and user preferences
-When the curator ranks events
+Given any set of repos and user preferences
+When the curator ranks repos
 Then all relevance scores are between 0.0 and 1.0
 
 ---
@@ -109,34 +114,28 @@ Then all relevance scores are between 0.0 and 1.0
 ## Feature: Digest Generation
 
 ### Scenario: Generate morning digest
-Given a user with interests in "ai" and "hackathon"
-And 10 curated events
+Given a user with interests in "ai" and "llm"
+And 10 curated repos
 When the courier skill builds a digest
 Then a digest is created with at most 10 entries
 And entries are ranked by relevance
 And each entry includes a personalized reason
 
-### Scenario: Digest respects user budget
-Given a user with max_price of 0
-And events including some paid events
-When the courier builds a digest
-Then only free events are included in the digest
-
 ### Scenario: Digest covers correct date range
 Given a user requesting a 7-day digest
-And events spanning 30 days
 When the courier builds a digest
-Then only events within 7 days are included
+Then period_start is now
+And period_end is approximately 7 days from now
 
 ### Scenario: Format digest as markdown
 Given a valid digest with entries
 When the courier formats the digest as markdown
-Then a string is returned with event titles, dates, and links
+Then a string is returned with repo titles, stars, and links
 
 ### Scenario: Format digest as HTML
 Given a valid digest with entries
 When the courier formats the digest as HTML
-Then an HTML string is returned with event cards
+Then an HTML string is returned with repo cards
 
 ---
 
@@ -168,8 +167,8 @@ Given a request with skill_level="master"
 When the preferences endpoint validates
 Then a 422 error is returned
 
-### Scenario: Reject invalid borough
-Given a request with boroughs=["New Jersey"]
+### Scenario: Reject invalid language
+Given a request with languages=["klingon"]
 When the preferences endpoint validates
 Then a 422 error is returned
 
@@ -195,9 +194,19 @@ Then script tags are removed
 And "Hello" remains
 
 ### Scenario: Sanitize SQL injection
-Given a string containing "'; DROP TABLE events; --"
+Given a string containing "'; DROP TABLE repos; --"
 When the sanitizer processes it
-Then SQL injection characters are removed
+Then SQL injection characters and keywords are removed
+
+### Scenario: Validate programming language
+Given a language name "Python"
+When the sanitizer validates it
+Then "python" is returned
+
+### Scenario: Reject invalid language
+Given a language name "NotALanguage"
+When the sanitizer validates it
+Then a ValueError is raised
 
 ### Scenario: Enforce rate limit
 Given a rate limiter with max_requests=5
@@ -225,14 +234,14 @@ Then the email is replaced with "[EMAIL]"
 ## Feature: Agent Memory
 
 ### Scenario: Remember user preferences across sessions
-Given a user sets interests to ["ai", "web3"]
+Given a user sets interests to ["ai", "llm"]
 When a new agent session is created
-Then the user's interests are recalled as ["ai", "web3"]
+Then the user's interests are recalled as ["ai", "llm"]
 
-### Scenario: Track RSVP history
-Given a user RSVPs to an event
-When RSVP history is queried
-Then the event appears in the history
+### Scenario: Track star history
+Given a user stars a repo
+When star history is queried
+Then the repo appears in the history
 
 ### Scenario: Learn from feedback
 Given a user gives positive feedback on "ai"
@@ -252,12 +261,12 @@ Then all user data is removed
 ### Scenario: List available tools
 Given the MCP server is running
 When list_tools is called
-Then 3 tools are returned: list_events, get_digest, search_events
+Then 3 tools are returned: list_repos, get_digest, search_repos
 
-### Scenario: Call list_events tool
+### Scenario: Call list_repos tool
 Given the MCP server is running
-When list_events is called with topic="ai"
-Then a list of AI-related events is returned
+When list_repos is called with language="python"
+Then a list of Python repos is returned
 
 ### Scenario: Call get_digest with authentication
 Given a valid user_id
@@ -269,6 +278,11 @@ Given no user_id is provided
 When get_digest is called
 Then a ValueError is raised
 
+### Scenario: Call search_repos tool
+Given the MCP server is running
+When search_repos is called with query="python LLM agent"
+Then a list of matching repos is returned
+
 ---
 
 ## Feature: Web Dashboard
@@ -279,26 +293,31 @@ When GET /health is called
 Then status 200 is returned
 And response contains {"status": "healthy"}
 
-### Scenario: Events endpoint returns 200
+### Scenario: Repos endpoint returns 200
 Given the server is running
-When GET /events is called
+When GET /repos is called
 Then status 200 is returned
 And response is a JSON array
 
-### Scenario: Events endpoint supports topic filter
-Given events exist with various topics
-When GET /events?topic=ai is called
-Then only events with "ai" tag are returned
+### Scenario: Repos endpoint supports language filter
+Given repos exist with various languages
+When GET /repos?language=python is called
+Then only Python repos are returned
+
+### Scenario: Repos endpoint supports topic filter
+Given repos exist with various topics
+When GET /repos?topic=ai is called
+Then only repos with "ai" tag are returned
+
+### Scenario: Repos endpoint supports min_stars filter
+Given repos exist with various star counts
+When GET /repos?min_stars=1000 is called
+Then only repos with at least 1000 stars are returned
 
 ### Scenario: Digest requires user_id
 Given the server is running
 When GET /digest is called without user_id
 Then status 422 is returned
-
-### Scenario: Invalid days_ahead returns error
-Given the server is running
-When GET /events?days_ahead=-1 is called
-Then status 400 or 422 is returned
 
 ---
 
@@ -330,17 +349,16 @@ Then a welcome message is returned with Aurellia branding
 
 ### Scenario: User receives personalized digest
 Given a user interested in "ai"
-And AI events exist in sources
+And AI repos exist in sources
 When the pipeline runs
-Then the digest contains AI-related events ranked highest
+Then the digest contains AI-related repos ranked highest
 
-### Scenario: User RSVP and agent learns
-Given a user RSVPs to an AI event
+### Scenario: User stars repo and agent learns
+Given a user stars an AI repo
 When the next digest is generated
-Then AI events have higher relevance scores
+Then AI repos have higher relevance scores
 
 ### Scenario: User deletes account
 Given a user with data stored
 When delete_account is called
 Then all user data is removed
-And subsequent queries return not found

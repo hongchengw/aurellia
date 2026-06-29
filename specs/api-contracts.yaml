@@ -9,49 +9,57 @@ content_type: "application/json"
 
 schemas:
 
-  EventDTO:
+  RepoDTO:
     type: object
-    required: [title, url, source, starts_at]
+    required: [title, url, source]
     properties:
       title:
         type: string
         minLength: 1
         maxLength: 500
-        example: "AI Hackathon NYC 2026"
+        example: "langchain-ai/langchain"
       description:
         type: string
         maxLength: 5000
-        example: "48-hour AI hackathon in Brooklyn"
+        example: "Build context-aware reasoning applications"
       url:
         type: string
         format: uri
         pattern: "^https://"
-        example: "https://luma.com/ai-hackathon-nyc"
+        example: "https://github.com/langchain-ai/langchain"
       source:
         type: string
-        enum: [luma, eventbrite, mlh, partiful, manual]
-      event_type:
+        enum: [github]
+      repo_category:
         type: string
-        enum: [hackathon, meetup, workshop, info_session, coworking, conference, social, other]
-      location:
+        enum: [llm, ai_agent, framework, tool, data, webdev, security, devtools, game, other]
+      language:
         type: string
-        example: "Brooklyn, NYC"
-      starts_at:
-        type: string
-        format: date-time
-        example: "2026-07-02T09:00:00Z"
-      is_free:
-        type: boolean
-        default: true
-      price:
-        type: number
+        example: "Python"
+      stars:
+        type: integer
         minimum: 0
-        nullable: true
+        example: 95000
+      forks:
+        type: integer
+        minimum: 0
+        example: 15000
+      stars_today:
+        type: integer
+        minimum: 0
+        example: 250
       tags:
         type: array
         items:
           type: string
-        example: ["ai", "hackathon", "beginner-friendly"]
+        example: ["llm", "langchain", "ai", "python"]
+      skill_level:
+        type: string
+        enum: [beginner, intermediate, advanced, any]
+      relevance_score:
+        type: number
+        minimum: 0
+        maximum: 1
 
   UserPreferenceDTO:
     type: object
@@ -60,24 +68,15 @@ schemas:
         type: array
         items:
           type: string
-        example: ["ai", "web3", "hackathon"]
-      boroughs:
+        example: ["ai", "llm", "agents"]
+      languages:
         type: array
         items:
           type: string
-          enum: [Manhattan, Brooklyn, Queens, Bronx, Staten Island]
-      max_price:
-        type: number
-        minimum: 0
-        example: 25.0
+        example: ["python", "typescript", "rust"]
       skill_level:
         type: string
         enum: [beginner, intermediate, advanced, any]
-      preferred_days:
-        type: array
-        items:
-          type: string
-          enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
 
   DigestEntryDTO:
     type: object
@@ -91,11 +90,12 @@ schemas:
       url:
         type: string
         format: uri
-      location:
+      stars:
+        type: integer
+      stars_today:
+        type: integer
+      language:
         type: string
-      starts_at:
-        type: string
-        format: date-time
       relevance_score:
         type: number
         minimum: 0
@@ -124,7 +124,7 @@ schemas:
     properties:
       detail:
         type: string
-        example: "Invalid city name"
+        example: "Invalid language name"
 
 # ─── Endpoints ──────────────────────────────────────────────────────────────
 
@@ -145,68 +145,62 @@ endpoints:
               example: "healthy"
             version:
               type: string
-              example: "0.1.0"
+              example: "0.3.0"
 
-  # ── List Events ───────────────────────────────────────────────────────────
-  GET /events:
-    description: "List upcoming tech events with optional filters"
+  # ── List Repos ───────────────────────────────────────────────────────────
+  GET /repos:
+    description: "List trending repos with optional filters"
     auth: false
     query_params:
+      - name: language
+        type: string
+        required: false
+        description: Filter by programming language
+        example: "python"
       - name: topic
         type: string
         required: false
         description: Filter by topic tag
         example: "ai"
-      - name: borough
-        type: string
-        required: false
-        description: Filter by NYC borough
-        enum: [Manhattan, Brooklyn, Queens, Bronx, Staten Island]
-      - name: days_ahead
+      - name: min_stars
         type: integer
         required: false
-        default: 7
-        min: 1
-        max: 90
-        description: Days to look ahead
-      - name: free_only
-        type: boolean
-        required: false
-        default: false
-        description: Only show free events
+        default: 0
+        min: 0
+        description: Minimum star count
     responses:
       "200":
-        description: List of events
+        description: List of repos
         body:
           type: array
           items:
-            $ref: "#/components/schemas/EventDTO"
+            $ref: "#/components/schemas/RepoDTO"
       "422":
         description: Validation error
         body:
           $ref: "#/components/schemas/ErrorResponse"
 
-  # ── Get Event ─────────────────────────────────────────────────────────────
-  GET /events/{event_id}:
-    description: "Get a single event by ID"
+  # ── Get Repo ─────────────────────────────────────────────────────────────
+  GET /repos/{repo_id}:
+    description: "Get a single repo by ID"
     auth: false
     path_params:
-      - name: event_id
+      - name: repo_id
         type: integer
         required: true
     responses:
       "200":
-        description: Event details
+        description: Repo details
         body:
-          $ref: "#/components/schemas/EventDTO"
+          $ref: "#/components/schemas/RepoDTO"
       "404":
-        description: Event not found
+        description: Repo not found
       "501":
-        description: Not implemented in v1
+        description: Not implemented in v3
 
   # ── Get Digest ────────────────────────────────────────────────────────────
   GET /digest:
-    description: "Get a personalized event digest"
+    description: "Get a personalized repo digest"
     auth: true
     query_params:
       - name: user_id
@@ -246,7 +240,7 @@ endpoints:
             user_id:
               type: string
       "422":
-        description: Validation error (invalid borough, skill level, etc.)
+        description: Validation error (invalid language, skill level, etc.)
 
   # ── Get Preferences ───────────────────────────────────────────────────────
   GET /preferences:
@@ -263,28 +257,22 @@ endpoints:
           $ref: "#/components/schemas/UserPreferenceDTO"
 
   # ── MCP Tools ─────────────────────────────────────────────────────────────
-  mcp/list_events:
-    description: "MCP tool: List upcoming NYC tech events"
+  mcp/list_repos:
+    description: "MCP tool: List trending GitHub repos"
     parameters:
-      city:
+      language:
         type: string
-        default: "NYC"
+        nullable: true
       topic:
         type: string
         nullable: true
-      borough:
-        type: string
-        nullable: true
-      days_ahead:
+      min_stars:
         type: integer
-        default: 7
-      free_only:
-        type: boolean
-        default: false
+        default: 0
     returns:
       type: array
       items:
-        $ref: "#/components/schemas/EventDTO"
+        $ref: "#/components/schemas/RepoDTO"
 
   mcp/get_digest:
     description: "MCP tool: Get personalized morning digest"
@@ -300,14 +288,14 @@ endpoints:
     returns:
       $ref: "#/components/schemas/DigestDTO"
 
-  mcp/search_events:
-    description: "MCP tool: Natural language event search"
+  mcp/search_repos:
+    description: "MCP tool: Natural language repo search"
     parameters:
       query:
         type: string
         required: true
-        example: "free AI hackathon in Brooklyn this weekend"
+        example: "python LLM agent framework"
     returns:
       type: array
       items:
-        $ref: "#/components/schemas/EventDTO"
+        $ref: "#/components/schemas/RepoDTO"
