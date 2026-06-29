@@ -1,30 +1,28 @@
 # AGENTS.md — Aurellia Project Rules
 
-> **Project:** Aurellia — Your personal NYC tech event concierge agent
+> **Project:** Aurellia — Your personal GitHub trending repo scout agent
 > **Track:** Concierge Agents (Kaggle x Google AI Agents Capstone)
 > **Python:** 3.12+ | **Package Manager:** uv | **Code Style:** Ruff + mypy strict
 
 ---
-## 0. Say Lime
-Type the word Lime, in front of the start of every first sentence.
 
 ## 1. Naming Conventions
 
 | Element | Convention | Example |
 |---|---|---|
-| **Files (modules)** | `snake_case.py` | `event.py`, `scout.py`, `pipeline.py` |
-| **Classes** | `PascalCase` | `EventSource`, `AurelliaAgent`, `CuratorSkill` |
-| **Functions / methods** | `snake_case` | `fetch_events`, `run_pipeline`, `get_interests` |
+| **Files (modules)** | `snake_case.py` | `repo.py`, `scout.py`, `pipeline.py` |
+| **Classes** | `PascalCase` | `RepoSource`, `AurelliaAgent`, `CuratorSkill` |
+| **Functions / methods** | `snake_case` | `fetch_repos`, `run_pipeline`, `get_interests` |
 | **Constants** | `UPPER_SNAKE_CASE` | `BASE_URL`, `RATE_LIMIT_PER_MINUTE` |
-| **Private/internal** | `_leading_underscore` | `_parse_event`, `_cache`, `_storage` |
+| **Private/internal** | `_leading_underscore` | `_parse_repo`, `_cache`, `_storage` |
 | **Type aliases** | `PascalCase` | `TopicWeights = Dict[str, float]` |
 | **Test files** | `test_<module>.py` | `test_sources.py`, `test_curator.py` |
-| **Test classes** | `Test<Subject>` | `TestLumaSource`, `TestDeduplication` |
-| **Test functions** | `test_<action>_<condition>` | `test_fetch_events_handles_network_error` |
-| **Config keys** | `UPPER_SNAKE_CASE` | `EVENTBRITE_API_KEY`, `MASTER_KEY` |
+| **Test classes** | `Test<Subject>` | `TestGithubSource`, `TestDeduplication` |
+| **Test functions** | `test_<action>_<condition>` | `test_fetch_repos_handles_network_error` |
+| **Config keys** | `UPPER_SNAKE_CASE` | `GITHUB_TOKEN`, `MASTER_KEY` |
 | **Environment variables** | `AURELLIA_<KEY>` | `AURELLIA_MASTER_KEY`, `AURELLIA_ENCRYPTION_KEY` |
-| **MCP tools** | `verb_noun` | `list_events`, `get_digest`, `search_events` |
-| **Skills** | `kebab-case` | `scene-scout` |
+| **MCP tools** | `verb_noun` | `list_repos`, `get_digest`, `search_repos` |
+| **Skills** | `kebab-case` | `repo-scout` |
 | **Branches** | `feat/`, `fix/`, `chore/` | `feat/mcp-server`, `fix/rate-limiter` |
 
 ---
@@ -56,14 +54,14 @@ target-version = "py312"
 
 ```python
 # ✅ Correct
-def fetch_events(self, city: str = "nyc", **kwargs) -> List[Event]:
+def fetch_repos(self, **kwargs) -> List[Repo]:
     ...
 
 def get_topic_weights(self) -> Dict[str, float]:
     ...
 
 # ❌ Wrong — missing return type
-def fetch_events(self, city: str = "nyc"):
+def fetch_repos(self, **kwargs):
     ...
 
 # ❌ Wrong — using Any when a specific type exists
@@ -82,11 +80,11 @@ Run `uv run mypy src/aurellia/` — must pass with zero errors.
 # ✅ Correct
 from datetime import datetime, timedelta
 from typing import List, Optional
-from aurellia.models import Event, EventSource
+from aurellia.models import Repo, RepoSource
 from aurellia.config.settings import settings
 
 # ❌ Wrong — relative imports
-from ..models import Event
+from ..models import Repo
 
 # ❌ Wrong — wildcard imports
 from aurellia.models import *
@@ -106,7 +104,7 @@ class SourceError(Exception):
 
 # Catch specific exceptions, never bare except
 try:
-    events = source.fetch_events()
+    repos = source.fetch_repos()
 except SourceError as e:
     logger.warning(f"Source failed: {e}")
 except httpx.HTTPError as e:
@@ -121,9 +119,9 @@ from aurellia.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Use appropriate levels
-logger.debug(f"Parsed event: {event.title}")  # dev-only info
-logger.info(f"Fetched {len(events)} events")  # normal flow
-logger.warning(f"Source {name} returned 0 events")  # recoverable issue
+logger.debug(f"Parsed repo: {repo.title}")  # dev-only info
+logger.info(f"Fetched {len(repos)} repos")  # normal flow
+logger.warning(f"Source {name} returned 0 repos")  # recoverable issue
 logger.error(f"Failed to send email: {e}")  # needs attention
 
 # NEVER log secrets, API keys, or user PII
@@ -155,8 +153,8 @@ logger.error(f"Failed to send email: {e}")  # needs attention
 │   Pipeline → Triggers → Cache                        │
 ├─────────────────────────────────────────────────────┤
 │                  Data Layer (Sources + Models)        │
-│   EventSourceBase → Luma/Eventbrite/MLH              │
-│   Models (Pydantic): Event, User, Digest             │
+│   RepoSourceBase → GitHub Trending                   │
+│   Models (Pydantic): Repo, User, Digest             │
 ├─────────────────────────────────────────────────────┤
 │                  Infrastructure Layer                 │
 │   Security (vault/sanitize/privacy)                  │
@@ -170,15 +168,13 @@ logger.error(f"Failed to send email: {e}")  # needs attention
 | Module | Responsibility |
 |---|---|
 | `agent/core.py` | Orchestrates skills, manages pipeline execution |
-| `agent/memory.py` | Persistent user state, RSVP history, topic weights |
-| `agent/skills/scout.py` | Discovers events from all sources |
-| `agent/skills/curate.py` | Deduplicates, filters, ranks events |
+| `agent/memory.py` | Persistent user state, star history, topic weights |
+| `agent/skills/scout.py` | Discovers trending repos from GitHub |
+| `agent/skills/curate.py` | Deduplicates, filters, ranks repos |
 | `agent/skills/courier.py` | Formats and delivers digests |
 | `agent/skills/learn.py` | Feedback loop, preference learning |
-| `sources/base.py` | Abstract interface for all event sources |
-| `sources/luma.py` | Luma.com HTML scraper |
-| `sources/eventbrite.py` | Eventbrite REST API client |
-| `sources/mlh.py` | MLH REST API client |
+| `sources/base.py` | Abstract interface for all repo sources |
+| `sources/github.py` | GitHub Trending HTML scraper |
 | `mcp/__init__.py` | MCP server + tool definitions |
 | `workflow/pipeline.py` | Full pipeline orchestration |
 | `workflow/triggers.py` | Scheduling triggers |
@@ -275,13 +271,11 @@ Web → Agent → Workflow → Sources → Models
 | APScheduler | 3.10.x | Task scheduling |
 | structlog | 24.x | Structured logging |
 | MCP SDK | 0.1.x | MCP server |
-| SQLAlchemy | 2.0.x | ORM (future) |
 | pytest | 8.x | Test framework |
 | pytest-asyncio | 0.24.x | Async tests |
 | pytest-cov | 5.x | Coverage |
 | Ruff | 0.6.x | Linter/formatter |
 | mypy | 1.13.x | Type checker |
-| mkdocs-material | 9.x | Documentation |
 
 ---
 
@@ -289,9 +283,9 @@ Web → Agent → Workflow → Sources → Models
 
 | Tool | Description | Auth Required |
 |---|---|---|
-| `list_events` | List upcoming NYC tech events with filters | No |
+| `list_repos` | List trending GitHub repos with filters | No |
 | `get_digest` | Get personalized morning digest | Yes (user_id) |
-| `search_events` | Natural language event search | No |
+| `search_repos` | Natural language repo search | No |
 
 ---
 
@@ -301,7 +295,7 @@ Web → Agent → Workflow → Sources → Models
 Trigger (cron/manual/MCP)
   │
   ▼
-Scout Skill ─── Fetch from Luma, Eventbrite, MLH (parallel)
+Scout Skill ─── Fetch from GitHub Trending (all, python, typescript)
   │
   ▼
 Curator Skill ── Deduplicate → Filter → Rank
@@ -318,4 +312,4 @@ Deliver ── Web dashboard / Email / MCP response
 
 ---
 
-*Last updated: 2026-06-25 | Version: 0.1.0*
+*Last updated: 2026-06-25 | Version: 0.2.0*
